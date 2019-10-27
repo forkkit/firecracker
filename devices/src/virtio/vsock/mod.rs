@@ -14,7 +14,7 @@ mod unix;
 pub use self::defs::uapi::VIRTIO_ID_VSOCK as TYPE_VSOCK;
 pub use self::defs::EVENT_COUNT as VSOCK_EVENTS_COUNT;
 pub use self::device::Vsock;
-pub use self::unix::VsockUnixBackend;
+pub use self::unix::{Error as VsockUnixBackendError, VsockUnixBackend};
 
 use std::os::unix::io::RawFd;
 use std::sync::mpsc;
@@ -282,7 +282,7 @@ mod tests {
         pub device: Vsock<TestBackend>,
 
         // This needs to live here, so that sending the handler, at device activation, works.
-        _handler_receiver: mpsc::Receiver<Box<EpollHandler>>,
+        _handler_receiver: mpsc::Receiver<Box<dyn EpollHandler>>,
     }
 
     impl TestContext {

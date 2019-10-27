@@ -12,7 +12,7 @@ use headers::{Header, MediaType};
 /// The status code is defined as specified in the
 /// [RFC](https://tools.ietf.org/html/rfc7231#section-6).
 #[allow(dead_code)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StatusCode {
     /// 100, Continue
     Continue,
@@ -31,7 +31,8 @@ pub enum StatusCode {
 }
 
 impl StatusCode {
-    fn raw(self) -> &'static [u8; 3] {
+    /// Returns the status code as bytes.
+    pub fn raw(self) -> &'static [u8; 3] {
         match self {
             StatusCode::Continue => b"100",
             StatusCode::OK => b"200",
@@ -70,26 +71,39 @@ impl StatusLine {
 /// Wrapper over the list of headers associated with a HTTP Response.
 /// When creating a ResponseHeaders object, the content type is initialized to `text/plain`.
 /// The content type can be updated with a call to `set_content_type`.
-#[derive(Default)]
 pub struct ResponseHeaders {
     content_length: i32,
     content_type: MediaType,
+    server: String,
+}
+
+impl Default for ResponseHeaders {
+    fn default() -> Self {
+        ResponseHeaders {
+            content_length: Default::default(),
+            content_type: Default::default(),
+            server: "Firecracker API".to_string(),
+        }
+    }
 }
 
 impl ResponseHeaders {
     /// Writes the headers to `buf` using the HTTP specification.
     pub fn write_all<T: Write>(&self, buf: &mut T) -> Result<(), WriteError> {
-        buf.write_all(b"Server: Firecracker API")?;
+        buf.write_all(Header::Server.raw())?;
+        buf.write_all(&[COLON, SP])?;
+        buf.write_all(self.server.as_bytes())?;
+
         buf.write_all(&[CR, LF])?;
         buf.write_all(b"Connection: keep-alive")?;
         buf.write_all(&[CR, LF])?;
 
-        buf.write_all(Header::ContentType.raw())?;
-        buf.write_all(&[COLON, SP])?;
-        buf.write_all(self.content_type.as_str().as_bytes())?;
-        buf.write_all(&[CR, LF])?;
-
         if self.content_length != 0 {
+            buf.write_all(Header::ContentType.raw())?;
+            buf.write_all(&[COLON, SP])?;
+            buf.write_all(self.content_type.as_str().as_bytes())?;
+            buf.write_all(&[CR, LF])?;
+
             buf.write_all(Header::ContentLength.raw())?;
             buf.write_all(&[COLON, SP])?;
             buf.write_all(self.content_length.to_string().as_bytes())?;
@@ -102,6 +116,11 @@ impl ResponseHeaders {
     // Sets the content length to be written in the HTTP response.
     fn set_content_length(&mut self, content_length: i32) {
         self.content_length = content_length;
+    }
+
+    /// Sets the HTTP response header server.
+    pub fn set_server(&mut self, server: &str) {
+        self.server = String::from(server);
     }
 
     /// Sets the content type to be written in the HTTP response.
@@ -135,10 +154,19 @@ impl Response {
     ///
     /// This function has side effects because it also updates the headers:
     /// - `ContentLength`: this is set to the length of the specified body.
-    /// - `MediaType`: this is set to "text/plain".
     pub fn set_body(&mut self, body: Body) {
         self.headers.set_content_length(body.len() as i32);
         self.body = Some(body);
+    }
+
+    /// Updates the content type of the `Response`.
+    pub fn set_content_type(&mut self, content_type: MediaType) {
+        self.headers.set_content_type(content_type);
+    }
+
+    /// Sets the HTTP response server.
+    pub fn set_server(&mut self, server: &str) {
+        self.headers.set_server(server);
     }
 
     fn write_body<T: Write>(&self, mut buf: T) -> Result<(), WriteError> {
@@ -196,6 +224,7 @@ mod tests {
         let mut response = Response::new(Version::Http10, StatusCode::OK);
         let body = "This is a test";
         response.set_body(Body::new(body));
+        response.set_content_type(MediaType::PlainText);
 
         assert!(response.status() == StatusCode::OK);
         assert_eq!(response.body().unwrap(), Body::new(body));
@@ -217,6 +246,36 @@ mod tests {
         // Test write failed.
         let mut response_buf: [u8; 1] = [0; 1];
         assert!(response.write_all(&mut response_buf.as_mut()).is_err());
+    }
+
+    #[test]
+    fn test_set_server() {
+        let mut response = Response::new(Version::Http10, StatusCode::OK);
+        let body = "This is a test";
+        let server = "rust-vmm API";
+        response.set_body(Body::new(body));
+        response.set_content_type(MediaType::PlainText);
+        response.set_server(server);
+
+        assert!(response.status() == StatusCode::OK);
+        assert_eq!(response.body().unwrap(), Body::new(body));
+        assert_eq!(response.http_version(), Version::Http10);
+        assert_eq!(response.content_length(), 14);
+        assert_eq!(response.content_type(), MediaType::PlainText);
+
+        let expected_response = format!(
+            "HTTP/1.0 200 \r\n\
+             Server: {}\r\n\
+             Connection: keep-alive\r\n\
+             Content-Type: text/plain\r\n\
+             Content-Length: 14\r\n\r\n\
+             This is a test",
+            server
+        );
+
+        let mut response_buf: [u8; 123] = [0; 123];
+        assert!(response.write_all(&mut response_buf.as_mut()).is_ok());
+        assert!(response_buf.as_ref() == expected_response.as_bytes());
     }
 
     #[test]

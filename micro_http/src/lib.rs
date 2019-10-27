@@ -56,11 +56,12 @@
 //! ## Example for creating an HTTP Response
 //! ```
 //! extern crate micro_http;
-//! use micro_http::{Body, Response, StatusCode, Version};
+//! use micro_http::{Body, Response, StatusCode, Version, MediaType};
 //!
 //! let mut response = Response::new(Version::Http10, StatusCode::OK);
 //! let body = String::from("This is a test");
 //! response.set_body(Body::new(body.clone()));
+//! response.set_content_type(MediaType::PlainText);
 //!
 //! assert!(response.status() == StatusCode::OK);
 //! assert_eq!(response.body().unwrap(), Body::new(body));
@@ -74,12 +75,14 @@ mod common;
 mod connection;
 mod request;
 mod response;
+mod server;
 use common::ascii;
 use common::headers;
 
-pub use connection::HttpConnection;
+pub use connection::{ConnectionError, HttpConnection};
 pub use request::{Request, RequestError};
 pub use response::{Response, StatusCode};
+pub use server::{HttpServer, ServerError, ServerRequest, ServerResponse};
 
-pub use common::headers::Headers;
-pub use common::{Body, Version};
+pub use common::headers::{Headers, MediaType};
+pub use common::{Body, Method, Version};

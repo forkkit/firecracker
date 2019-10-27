@@ -46,7 +46,7 @@ development container) as follows:
 git clone https://github.com/firecracker-microvm/firecracker
 cd firecracker
 tools/devtool build
-toolchain="$(uname -m)-unkown-linux-musl"
+toolchain="$(uname -m)-unknown-linux-musl"
 ```
 
 The Firecracker binary will be placed at
@@ -139,8 +139,8 @@ Frequently asked questions are collected in our [FAQ doc](FAQ.md).
 You can get in touch with the Firecracker community in the following ways:
 - Security-related issues, see our [security policy document](SECURITY-POLICY.md).
 - Chat with us on our
-  [Slack workspace](https://tinyurl.com/firecracker-microvm). _Note: most of the
-  maintainers are on a European time zone._
+  [Slack workspace](https://join.slack.com/t/firecracker-microvm/shared_invite/enQtNDY2NTUwMzQ3MDE1LWIwMzA0OWFkMTZhMTlmMDZiMmFkYjMyODMxMGQ1ZjliMzJjNjJiNWRhNWNkOGEyNmUxNmRkMjZhYTc3MmVjZjM).
+  _Note: most of the maintainers are on a European time zone._
 - Open a GitHub issue in this repository.
 - Email the maintainers at
   [firecracker-maintainers@amazon.com](mailto:firecracker-maintainers@amazon.com).

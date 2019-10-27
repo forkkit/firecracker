@@ -16,6 +16,8 @@ pub enum Header {
     Expect,
     /// Header `Transfer-Encoding`.
     TransferEncoding,
+    /// Header `Server`.
+    Server,
 }
 
 impl Header {
@@ -25,6 +27,7 @@ impl Header {
             Header::ContentType => b"Content-Type",
             Header::Expect => b"Expect",
             Header::TransferEncoding => b"Transfer-Encoding",
+            Header::Server => b"Server",
         }
     }
 
@@ -35,6 +38,7 @@ impl Header {
                 "Content-Type" => Ok(Header::ContentType),
                 "Expect" => Ok(Header::Expect),
                 "Transfer-Encoding" => Ok(Header::TransferEncoding),
+                "Server" => Ok(Header::Server),
                 _ => Err(RequestError::InvalidHeader),
             }
         } else {
@@ -102,8 +106,8 @@ impl Headers {
                         Header::ContentLength => {
                             let try_numeric: Result<i32, std::num::ParseIntError> =
                                 std::str::FromStr::from_str(entry[1].trim());
-                            if try_numeric.is_ok() {
-                                self.content_length = try_numeric.unwrap();
+                            if let Ok(content_length) = try_numeric {
+                                self.content_length = content_length;
                                 Ok(())
                             } else {
                                 Err(RequestError::InvalidHeader)
@@ -112,7 +116,7 @@ impl Headers {
                         Header::ContentType => {
                             match MediaType::try_from(entry[1].trim().as_bytes()) {
                                 Ok(_) => Ok(()),
-                                Err(_) => Err(RequestError::InvalidHeader),
+                                Err(_) => Err(RequestError::UnsupportedHeader),
                             }
                         }
                         Header::TransferEncoding => match entry[1].trim() {
@@ -130,6 +134,7 @@ impl Headers {
                             }
                             _ => Err(RequestError::InvalidHeader),
                         },
+                        Header::Server => Ok(()),
                     }
                 } else {
                     Err(RequestError::UnsupportedHeader)
@@ -218,7 +223,7 @@ pub enum MediaType {
 
 impl Default for MediaType {
     fn default() -> Self {
-        MediaType::PlainText
+        MediaType::ApplicationJson
     }
 }
 
@@ -229,7 +234,7 @@ impl MediaType {
         }
         let utf8_slice =
             String::from_utf8(bytes.to_vec()).map_err(|_| RequestError::InvalidRequest)?;
-        match utf8_slice.as_str() {
+        match utf8_slice.as_str().trim() {
             "text/plain" => Ok(MediaType::PlainText),
             "application/json" => Ok(MediaType::ApplicationJson),
             _ => Err(RequestError::InvalidRequest),
@@ -336,12 +341,12 @@ mod tests {
             RequestError::InvalidHeader
         );
 
-        // Invalid media type.
+        // Unsupported media type.
         assert_eq!(
             header
                 .parse_header_line(b"Content-Type: application/json-patch")
                 .unwrap_err(),
-            RequestError::InvalidHeader
+            RequestError::UnsupportedHeader
         );
 
         // Invalid input format.
