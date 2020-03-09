@@ -4,7 +4,8 @@ FROM ubuntu:18.04
 # The Rust toolchain layer will get updated most frequently, but we could keep the system
 # dependencies layer intact for much longer.
 
-ARG RUST_TOOLCHAIN="1.38.0"
+ARG RUST_TOOLCHAIN="1.39.0"
+ARG TINI_VERSION_TAG="v0.18.0"
 ARG TMP_BUILD_DIR=/tmp/build
 ARG FIRECRACKER_SRC_DIR="/firecracker"
 ARG FIRECRACKER_BUILD_DIR="$FIRECRACKER_SRC_DIR/build"
@@ -14,7 +15,6 @@ ARG CARGO_GIT_REGISTRY_DIR="$FIRECRACKER_BUILD_DIR/cargo_git_registry"
 ENV CARGO_HOME=/usr/local/rust
 ENV RUSTUP_HOME=/usr/local/rust
 ENV PATH="$PATH:$CARGO_HOME/bin"
-ENV CARGO_TARGET_DIR="$FIRECRACKER_BUILD_DIR/cargo_target"
 
 # Install system dependecies
 #
@@ -72,6 +72,10 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain "$RUST_TOOL
         && ln -s "$CARGO_REGISTRY_DIR" "$CARGO_HOME/registry" \
         && rm -rf "$CARGO_HOME/git" \
         && ln -s "$CARGO_GIT_REGISTRY_DIR" "$CARGO_HOME/git"
- 
-WORKDIR "$FIRECRACKER_SRC_DIR"
+#
+# Add the tini init binary.
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION_TAG}/tini-static-arm64 /sbin/tini
+RUN chmod +x /sbin/tini
 
+WORKDIR "$FIRECRACKER_SRC_DIR"
+ENTRYPOINT ["/sbin/tini", "--"]

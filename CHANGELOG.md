@@ -1,5 +1,89 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added a new API call, `PUT /metrics`, for configuring the metrics
+  system.
+- Added `app_name` field in InstanceInfo struct for storing the
+  application name.
+
+### Fixed
+- Added `--version` flag to both Firecracker and Jailer.
+
+### Changed
+- Updated CVE-2019-3016 mitigation information in
+  [Production Host Setup](docs/prod-host-setup.md)
+- In case of using an invalid JSON as a 'config-file' for Firecracker,
+  the process will exit with return code 152.
+- Removed the `testrun.sh` wrapper.
+- Removed `metrics_fifo` field from the logger configuration.
+
+## [0.21.0]
+
+### Added
+
+- Support for booting with an initial RAM disk image. This image can be
+  specified through the new `initrd_path` field of the `/boot-source` API
+  request.
+
+### Fixed
+
+- Fixed #1469 - Broken GitHub location for Firecracker release binary.
+- The jailer allows changing the default api socket path by using the extra
+  arguments passed to firecracker.
+- Fixed #1456 - Occasional KVM_EXIT_SHUTDOWN and bad syscall (14) during 
+  VM shutdown.
+- Updated the production host setup guide with steps for addressing
+  CVE-2019-18960.
+- The HTTP header parsing is now case insensitive.
+- The `put_api_requests` and `patch_api_requests` metrics for net devices were
+  un-swapped.
+
+### Changed
+  
+- Removed redundant `--seccomp-level` jailer parameter since it can be
+  simply forwarded to the Firecracker executable using "end of command
+  options" convention.
+- Removed `memory.dirty_pages` metric.
+- Removed `options` field from the logger configuration.
+- Decreased release binary size by ~15%.
+- Changed default API socket path to `/run/firecracker.socket`. This path
+  also applies when running with the jailer.
+- Disabled KVM dirty page tracking by default.
+- Removed redundant RescanBlockDevice action from the /actions API.
+  The functionality is available through the PATCH /drives API.
+  See `docs/api_requests/patch-block.md`.
+
+## [0.20.0]
+
+### Added
+
+- Added support for GICv2.
+
+### Fixed
+
+- Fixed CVE-2019-18960 - Fixed a logical error in bounds checking performed 
+  on vsock virtio descriptors.
+- Fixed #1283 - Can't start a VM in AARCH64 with vcpus number more than 16.
+- Fixed #1088 - The backtrace are printed on `panic`, no longer causing a 
+  seccomp fault.
+- Fixed #1375 - Change logger options type from Value to Vec<LogOption> to
+  prevent potential unwrap on None panics.
+- Fixed #1436 - Raise interrupt for TX queue used descriptors
+- Fixed #1439 - Prevent achieving 100% cpu load when the net device rx is 
+  throttled by the ratelimiter
+- Fixed #1437 - Invalid fields in rate limiter related API requests are 
+  now failing with a proper error message.
+- Fixed #1316 - correctly determine the size of a virtio device backed 
+  by a block device.
+- Fixed #1383 - Log failed api requests.
+
+### Changed
+
+- Decreased release binary size by 10%.
+
 ## [0.19.0]
 
 ### Added
@@ -23,6 +107,12 @@
   appear to support multiple vsock devices. Any subsequent calls to this API
   endpoint will override the previous vsock device configuration.
 - Removed unused 'Halting' and 'Halted' instance states.
+- Vsock host-initiated connections now implement a trivial handshake protocol.
+  See the [vsock doc](docs/vsock.md#host-initiated-connections) for details.
+  Related to:
+  [#1253](https://github.com/firecracker-microvm/firecracker/issues/1253),
+  [#1432](https://github.com/firecracker-microvm/firecracker/issues/1432),
+  [#1443](https://github.com/firecracker-microvm/firecracker/pull/1443)
 
 ### Fixed
 

@@ -22,7 +22,7 @@ The Firecracker vsock device aims to provide full virtio-vsock support to
 software running inside the guest VM, while bypassing vhost kernel code on the
 host. To that end, Firecracker implements the virtio-vsock device model, and
 mediates communication between AF_UNIX sockets (on the host end) and AF_VSOCK
-sockets (on the guest end). 
+sockets (on the guest end).
 
 In order to provide channel multiplexing, AF_VSOCK ports are translated into
 multiple AF_UNIX sockets (one Unix socket per vsock port). The virtio-vsock
@@ -39,7 +39,10 @@ send a connect command, in text form, specifying the destination AF_VSOCK port:
 "CONNECT PORT\n". Where PORT is the decimal port number, and "\n" is EOL (ASCII
 0x0A). Following that, the same connection will be forwarded by Firecracker to
 the guest software listening on that port, thus establishing the requested
-channel. If no one is listening, Firecracker will terminate the host
+channel. If the connection has been established, Firecracker will send an
+acknowledgement message to the connecting end (host-side), in the form
+"OK PORT\n", where `PORT` is the vsock port number assigned to
+the host end. If no one is listening, Firecracker will terminate the host
 connection.
 
 1. Host: At VM configuration time, add a virtio-vsock device, with some path
@@ -48,6 +51,7 @@ connection.
 3. Host: `connect()` to AF_UNIX at `uds_path`.
 4. Host: `send()` "CONNECT <port_num>\n".
 5. Guest: `accept()` the new connection.
+6. Host: `read()` "OK <assigned_hostside_port>\n".
 
 The channel is established between the sockets obtained at steps 3 (host)
 and 5 (guest).
@@ -82,16 +86,15 @@ The virtio-vsock device will require an ID, a CID, and the path to a backing
 AF_UNIX socket:
 
 ```bash
-curl -X PUT \
-  --unix-socket ./firecracker-api.sock \
-  /vsock \
-  -H accept:application/json \
-  -H content-type:application/json \
+curl --unix-socket /tmp/firecracker.socket -i \
+  -X PUT 'http://localhost/vsock' \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' \
   -d '{
       "vsock_id": "1",
       "guest_cid": 3,
       "uds_path": "./v.sock"
-    }'
+  }'
 ```
 
 Once the microvm is started, Firecracker will create and start listening on the
@@ -126,7 +129,12 @@ port:
 ```bash
 $ socat - UNIX-CONNECT:./v.sock
 CONNECT 52
+```
 
+`socat` will display the connection acknowledgement message:
+
+```
+OK 1073741824
 ```
 
 The connection should now be established (in the above example, between

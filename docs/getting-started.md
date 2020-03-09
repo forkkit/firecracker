@@ -73,13 +73,13 @@ latest=$(basename $(curl -fsSLI -o /dev/null -w  %{url_effective}  https://githu
 ```
 
 ```
-curl -LOJ https://github.com/firecracker-microvm/firecracker/releases/download/${latest}/firecracker-${latest}
+curl -LOJ https://github.com/firecracker-microvm/firecracker/releases/download/${latest}/firecracker-${latest}-$(uname -m)
 ```
 
 Rename the binary to "firecracker":
 
 ```
-mv firecracker-${latest} firecracker
+mv firecracker-${latest}-$(uname -m) firecracker
 ```
 
 Make the binary executable:
@@ -163,11 +163,11 @@ In your **second shell** prompt:
     echo "Saved kernel file to $dest_kernel and root block device to $dest_rootfs."
   ```
 
-- set the guest kernel:
+- set the guest kernel (assuming you are in the same directory as the above script was run):
 
   ```bash
     arch=`uname -m`
-    kernel_path="hello-vmlinux.bin"
+    kernel_path=$(pwd)"/hello-vmlinux.bin"
 
     if [ ${arch} = "x86_64" ]; then
       curl --unix-socket /tmp/firecracker.socket -i \
@@ -196,7 +196,7 @@ In your **second shell** prompt:
 - set the guest rootfs:
 
   ```bash
-    rootfs_path="hello-rootfs.ext4"
+    rootfs_path=$(pwd)"/hello-rootfs.ext4"
     curl --unix-socket /tmp/firecracker.socket -i \
       -X PUT 'http://localhost/drives/rootfs' \
       -H 'Accept: application/json'           \
@@ -247,24 +247,24 @@ curl --unix-socket /tmp/firecracker.socket -i  \
 
 #### Configuring the microVM without sending API requests
 
-If you'd like to boot up a guest machine without using the API socket, you can do that 
-by passing the parameter `--config-file` to the Firecracker process. The command for 
+If you'd like to boot up a guest machine without using the API socket, you can do that
+by passing the parameter `--config-file` to the Firecracker process. The command for
 starting Firecracker with this option will look like this:
 
 ```bash
-./firecracker --api-sock /tmp/firecracker.socket --config-file 
+./firecracker --api-sock /tmp/firecracker.socket --config-file
 <path_to_the_configuration_file>
-```    
+```
 
-`path_to_the_configuration_file` should represent the path to a file that contains a 
-JSON which stores the entire configuration for all of the microVM's resources. The 
-JSON **must** contain the configuration for the guest kernel and rootfs, as these 
-are mandatory, but all of the other resources are optional, so it's your choice 
-if you want to configure them or not. Because using this configuration method will 
-also start the microVM, you need to specify all desired pre-boot configurable resources 
-in that JSON. The names of the resources are the ones from the `firecracker.yaml` file 
-and the names of their fields are the same that are used in API requests. 
-You can find an example of configuration file at `tests/framework/vm_config.json`. 
+`path_to_the_configuration_file` should represent the path to a file that contains a
+JSON which stores the entire configuration for all of the microVM's resources. The
+JSON **must** contain the configuration for the guest kernel and rootfs, as these
+are mandatory, but all of the other resources are optional, so it's your choice
+if you want to configure them or not. Because using this configuration method will
+also start the microVM, you need to specify all desired pre-boot configurable resources
+in that JSON. The names of the resources are the ones from the `firecracker.yaml` file
+and the names of their fields are the same that are used in API requests.
+You can find an example of configuration file at `tests/framework/vm_config.json`.
 After the machine is booted, you can still use the socket to send API requests
 for post-boot operations.
 
@@ -302,10 +302,10 @@ Within the Firecracker repository root directory:
 
 This will build and place the two Firecracker binaries at:
 - `build/cargo_target/${toolchain}/debug/firecracker` and
-- `build/cargo_target/${toolchain}/debug/jailer`. 
+- `build/cargo_target/${toolchain}/debug/jailer`.
 
-The default build profile is `debug`. If you want to build 
-the release binaries (optimized and stripped of debug info), 
+The default build profile is `debug`. If you want to build
+the release binaries (optimized and stripped of debug info),
 use the `--release` option:
 
 ```bash

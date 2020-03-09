@@ -4,13 +4,18 @@
 
 import os
 import shutil
+import stat
 
 from subprocess import run, PIPE
 
 from retry.api import retry_call
 
-from framework.defs import API_USOCKET_NAME, FC_BINARY_NAME, \
-    JAILER_DEFAULT_CHROOT
+from framework.defs import FC_BINARY_NAME
+
+# Default name for the socket used for API calls.
+DEFAULT_USOCKET_NAME = 'run/firecracker.socket'
+# The default location for the chroot.
+DEFAULT_CHROOT_PATH = '/srv/jailer'
 
 
 class JailerContext:
@@ -28,7 +33,8 @@ class JailerContext:
     chroot_base = None
     netns = None
     daemonize = None
-    seccomp_level = None
+    extra_args = None
+    api_socket_name = None
 
     def __init__(
             self,
@@ -37,10 +43,10 @@ class JailerContext:
             numa_node=0,
             uid=1234,
             gid=1234,
-            chroot_base=JAILER_DEFAULT_CHROOT,
+            chroot_base=DEFAULT_CHROOT_PATH,
             netns=None,
             daemonize=True,
-            seccomp_level=2
+            **extra_args
     ):
         """Set up jailer fields.
 
@@ -56,13 +62,14 @@ class JailerContext:
         self.chroot_base = chroot_base
         self.netns = netns if netns is not None else jailer_id
         self.daemonize = daemonize
-        self.seccomp_level = seccomp_level
+        self.extra_args = extra_args
+        self.api_socket_name = DEFAULT_USOCKET_NAME
 
     def __del__(self):
         """Cleanup this jailer context."""
         self.cleanup()
 
-    def construct_param_list(self, config_file, no_api):
+    def construct_param_list(self):
         """Create the list of parameters we want the jailer to start with.
 
         We want to be able to vary any parameter even the required ones as we
@@ -90,39 +97,40 @@ class JailerContext:
             jailer_param_list.extend(['--netns', str(self.netns_file_path())])
         if self.daemonize:
             jailer_param_list.append('--daemonize')
-        if self.seccomp_level is not None:
-            jailer_param_list.extend(
-                ['--seccomp-level', str(self.seccomp_level)]
-            )
-        if config_file is not None:
-            jailer_param_list.extend(['--'])
-            jailer_param_list.extend(['--config-file', str(config_file)])
-        if no_api:
-            jailer_param_list.append('--no-api')
+        # applying neccessory extra args if needed
+        if len(self.extra_args) > 0:
+            jailer_param_list.append('--')
+            for key, value in self.extra_args.items():
+                jailer_param_list.append('--{}'.format(key))
+                if value is not None:
+                    jailer_param_list.append(value)
+                    if key == "api-sock":
+                        self.api_socket_name = value
         return jailer_param_list
 
     def chroot_base_with_id(self):
         """Return the MicroVM chroot base + MicroVM ID."""
         return os.path.join(
             self.chroot_base if self.chroot_base is not None
-            else JAILER_DEFAULT_CHROOT,
+            else DEFAULT_CHROOT_PATH,
             FC_BINARY_NAME,
             self.jailer_id
         )
 
     def api_socket_path(self):
         """Return the MicroVM API socket path."""
-        return os.path.join(self.chroot_path(), API_USOCKET_NAME)
+        return os.path.join(self.chroot_path(), self.api_socket_name)
 
     def chroot_path(self):
         """Return the MicroVM chroot path."""
         return os.path.join(self.chroot_base_with_id(), 'root')
 
     def jailed_path(self, file_path, create=False, create_jail=False):
-        """Create a hard link owned by uid:gid.
+        """Create a hard link or block special device owned by uid:gid.
 
-        Create a hard link to the specified file, changes the owner to
-        uid:gid, and returns a path to the link which is valid within the jail.
+        Create a hard link or block special device from the specified file,
+        changes the owner to uid:gid, and returns a path to the file which is
+        valid within the jail.
         """
         file_name = os.path.basename(file_path)
         global_p = os.path.join(self.chroot_path(), file_name)
@@ -130,8 +138,17 @@ class JailerContext:
             os.makedirs(self.chroot_path(), exist_ok=True)
         jailed_p = os.path.join("/", file_name)
         if create:
-            cmd = 'ln -f {} {}'.format(file_path, global_p)
-            run(cmd, shell=True, check=True)
+            stat_result = os.stat(file_path)
+            if stat.S_ISBLK(stat_result.st_mode):
+                cmd = [
+                    'mknod', global_p, 'b',
+                    str(os.major(stat_result.st_rdev)),
+                    str(os.minor(stat_result.st_rdev))
+                ]
+                run(cmd, check=True)
+            else:
+                cmd = 'ln -f {} {}'.format(file_path, global_p)
+                run(cmd, shell=True, check=True)
             cmd = 'chown {}:{} {}'.format(self.uid, self.gid, global_p)
             run(cmd, shell=True, check=True)
         return jailed_p
@@ -157,7 +174,7 @@ class JailerContext:
         """Set up this jailer context."""
         os.makedirs(
             self.chroot_base if self.chroot_base is not None
-            else JAILER_DEFAULT_CHROOT,
+            else DEFAULT_CHROOT_PATH,
             exist_ok=True
         )
         if self.netns:
@@ -166,7 +183,8 @@ class JailerContext:
     def cleanup(self):
         """Clean up this jailer context."""
         # pylint: disable=subprocess-run-check
-        shutil.rmtree(self.chroot_base_with_id(), ignore_errors=True)
+        if self.jailer_id:
+            shutil.rmtree(self.chroot_base_with_id(), ignore_errors=True)
 
         if self.netns:
             _ = run(

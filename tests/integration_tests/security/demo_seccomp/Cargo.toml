@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
 
 [dependencies]
-libc = ">0.2.39"
+libc = ">=0.2.39"
 
-seccomp = { path = "../../../../seccomp" }
+seccomp = { path = "../../../../src/seccomp" }
 
 [workspace]

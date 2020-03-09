@@ -91,6 +91,7 @@ s3://<bucket-url>/img/
             <optional_kernel_name.>vmlinux.bin
         fsfiles/
             <rootfs_name>rootfs.ext4
+            <optional_initrd_name.>initrd.img
             <other_fsfile_n>
             ...
         <other_resource_n>
@@ -171,7 +172,7 @@ tools/devtool test
 ## FAQ
 
 `Q1:`
-*I have a shell script that runs my tests and I don't want to rewrite it.*  
+*I have a shell script that runs my tests and I don't want to rewrite it.*
 `A1:`
 Insofar as it makes sense, you should write it as a python test function.
 However, you can always call the script from a shim python test function. You
@@ -181,34 +182,47 @@ as part of your test.
 
 `Q2:`
 *I want to add more tests that I don't want to commit to the Firecracker
-repository.*  
+repository.*
 `A2:`
 Before a testrun or test session, just add your test directory under `tests/`.
 `pytest` will discover all tests in this tree.
 
 `Q3:`
-*I want to have my own test fixtures, and not commit them in the repo.*  
+*I want to have my own test fixtures, and not commit them in the repo.*
 `A3:`
 Add a `conftest.py` file in your test directory, and place your fixtures there.
 `pytest` will bring them into scope for all your tests.
 
 `Q4:`
 *I want to use more/other microvm test images, but I don't want to add them to
-the common s3 bucket.*  
+the common s3 bucket.*
 `A4:`
-There are two options to achieve this:
+Add your custom images to the `build/img` subdirectory in the Firecracker
+source tree. This directory is bind-mounted in the container and used as a
+local image cache.
 
-1. Pass the `-i` / `--local-images-path` option to `testrun.sh`. This will use
-   local versions of the images found in the common s3 bucket.
-2. Leverage pytest to build a self-contained set of tests that use your own test
-   bucket.
-   - Create the s3 test bucket.
-   - Create a new test directory as per `A2`, and a fixture file as per `A3`.
-   - Within the new fixture, instantiate a `MicrovmImageS3Fetcher` for your s3
-     bucket.
-   - Using that `MicrovmImageS3Fetcher` object, create a fixture
-     similar to the `test_microvm_*` fixtures in in `conftest.py`, and pass that
-     as an argument to your tests.
+`Q5:`
+*Is there a way to speed up integration tests execution time?*
+`A5:`
+You can speed up tests execution time with any of these:
+
+1. Run the tests from inside the container and set the environment variable
+   `KEEP_TEST_SESSION` to a non-empty value.
+
+   Each **Testrun** begins by building the firecracker and unit tests binaries,
+   and ends by deleting all the built artifacts.
+   If you run the tests [from inside the container](#running), you can prevent
+   the binaries from being deleted exporting the `KEEP_TEST_SESSION` variable.
+   This way, all the following **Testrun** will be significantly faster as they
+   will not need to rebuild everything.
+   If any Rust source file is changed, the build is done incrementally.
+
+2. Pass the `-k substring` option to Pytest to only run a subset of tests by
+   specifying a part of their name.
+
+3. Only run the tests contained in a file or directory, as specified in the
+   **Running** section.
+
 
 ## Implementation Goals
 
